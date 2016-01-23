@@ -3,7 +3,7 @@ from pyquery import PyQuery as pq
 import requesocks
 import json
 import logging
-import time
+# import time
 
 
 entries = {
@@ -118,6 +118,10 @@ entries = {
 def get(url):
     logging.info('GET: %s' % url)
     session = requesocks.session()
+    session.proxies = {
+        'http': 'socks5://localhost:9050',
+        'https': 'socks5://localhost:9050',
+    }
     r = session.get(url)
     return r.text
 
@@ -167,7 +171,7 @@ def grab_list(prefix, entry):
             title, dish = grab_dish(href)
             if title is not None:
                 data[title] = dish
-            time.sleep(0.8)
+            #time.sleep(2)
         next_page = parser('.next')
         link = None if len(next_page) == 0 else next_page[0].attrib['href']
     with open('result/%s.json' % prefix, 'w') as f:
