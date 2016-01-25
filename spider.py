@@ -5,6 +5,11 @@ import requesocks
 import json
 import logging
 import codecs
+import time
+
+
+sleep_time = 15
+retry_times = 10
 
 
 def get(url):
@@ -22,39 +27,46 @@ def get(url):
 
 
 def grab_dish(link):
-    page = get(link)
-    if page is None:
-        logging.warning('open: %s' % link)
-        return None
-    if page == '404 Not Found':
-        logging.warning('404: %s' % link)
-        return None
-    parser = pq(page)
-    if len(parser('.notfound404_wraper')) == 1:
-        logging.warning('404: %s' % link)
-        return None
-    try:
-        dish = {}
-        dish['title'] = parser('.title')[0][0].text
-        dish['craft'] = parser('.w127')[0][1].text
-        dish['taste'] = parser('.w127')[1][1].text
-        dish['difficulty'] = parser('.w270')[0][1][2].text
-        dish['people'] = int('0' + parser('.w270')[1][1][2].text[:-2])
-        dish['prepare_time'] = parser('.w270')[2][1][2].text
-        dish['process_time'] = parser('.w270')[3][1][2].text
-        desc_html = parser('.materials p').html()
-        dish['description'] = '' if desc_html is None else desc_html[18:-18]
-        dish['main_ingre'] = {}
-        for i in parser('.zl h4'):
-            dish['main_ingre'][i[0].text] = i[1].text
-        dish['sub_ingre'] = {}
-        for i in parser('.fuliao li'):
-            dish['sub_ingre'][i[0][0].text] = i[1].text
-        logging.info('OK: %s' % link)
-        return dish
-    except:
-        logging.warning('parsing: %s' % link)
-        return None
+    for _ in range(retry_times):
+        page = get(link)
+        if page is None:
+            logging.warning('open: %s' % link)
+            time.sleep(sleep_time)
+            continue
+        if page == '404 Not Found':
+            logging.warning('404: %s' % link)
+            time.sleep(sleep_time)
+            continue
+        try:
+            parser = pq(page)
+            if len(parser('.notfound404_wraper')) == 1:
+                logging.warning('404: %s' % link)
+                time.sleep(sleep_time)
+                continue
+            dish = {}
+            dish['title'] = parser('.title')[0][0].text
+            dish['craft'] = parser('.w127')[0][1].text
+            dish['taste'] = parser('.w127')[1][1].text
+            dish['difficulty'] = parser('.w270')[0][1][2].text
+            dish['people'] = int('0' + parser('.w270')[1][1][2].text[:-2])
+            dish['prepare_time'] = parser('.w270')[2][1][2].text
+            dish['process_time'] = parser('.w270')[3][1][2].text
+            desc_html = parser('.materials p').html()
+            dish['description'] = '' if desc_html is None else desc_html[18:-18]
+            dish['main_ingre'] = {}
+            for i in parser('.zl h4'):
+                dish['main_ingre'][i[0].text] = i[1].text
+            dish['sub_ingre'] = {}
+            for i in parser('.fuliao li'):
+                dish['sub_ingre'][i[0][0].text] = i[1].text
+            logging.info('OK: %s' % link)
+            return dish
+        except:
+            logging.warning('parsing: %s' % link)
+            time.sleep(sleep_time)
+            continue
+    logging.error('get: %s' % link)
+    return None
 
 
 def grab_list(prefix, entry):
@@ -68,6 +80,7 @@ def grab_list(prefix, entry):
             dish = grab_dish(href)
             if dish is not None:
                 data.append(dish)
+            time.sleep(3)
         name = link.replace('/', '-')
         f = codecs.open('result/%s.json' % name, 'w', "utf-8")
         f.write(json.dumps(data, indent=4, ensure_ascii=False))
